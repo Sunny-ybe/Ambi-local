@@ -1,19 +1,16 @@
 # Python
 ambivenv/
 __pycache__/
+.pytest_cache/
 *.pyc
 *.pyo
+
+# Local data (rebuilt at runtime)
 server/chroma_db/
 server/ambi_v0.db
-ambi_db/
-ambi_memory_log.jsonl
-
-# Node
-node_modules/
-dist/
 
 # macOS
 .DS_Store
 
-# Secrets / local config
+# Local config
 *.local

@@ -78,7 +78,7 @@ curl http://127.0.0.1:8000/health   # → {"status":"ok"}
 # Then refresh any tabs that were already open
 ```
 
-Ollama must be running for embeddings (`nomic-embed-text` model used in some configs — check `server/embedding.py`; current version uses `sentence-transformers/all-MiniLM-L6-v2` via Python directly, so Ollama is not required).
+Embeddings run in-process via `sentence-transformers/all-MiniLM-L6-v2` (see `server/embedding.py`). No Ollama or external service required.
 
 ---
 
@@ -86,15 +86,17 @@ Ollama must be running for embeddings (`nomic-embed-text` model used in some con
 
 ```
 ambi/
-├── extension/              ← Chrome MV3 extension (no build step)
-│   ├── manifest.json       ← Permissions, hotkey definition, content script config
+├── extension/              ← Chrome MV3 extension (no build step — plain JS, load unpacked)
+│   ├── manifest.json       ← Permissions, hotkeys, content script config
 │   ├── background.js       ← Service worker: dwell tracking, API bridge
-│   ├── content.js          ← Injected into every page: text capture, search panel UI
+│   ├── content.js          ← Injected into every page: text capture, search + links panels
+│   ├── panel.css           ← Styles for the Shadow-DOM overlay
 │   └── Readability.js      ← Mozilla Readability vendored lib — DO NOT MODIFY
 ├── server/                 ← FastAPI backend Python package
 │   ├── main.py             ← All HTTP endpoints + scoring logic
 │   ├── db.py               ← SQLite helpers + cluster assignment logic
 │   ├── embedding.py        ← ChromaDB + sentence-transformers vector store
+│   ├── requirements.txt    ← Backend deps (fastapi, uvicorn, chromadb, sentence-transformers)
 │   ├── ambi_v0.db          ← SQLite database (gitignored)
 │   └── chroma_db/          ← ChromaDB vector store (gitignored)
 └── ambivenv/               ← Python virtualenv (gitignored)
@@ -261,37 +263,16 @@ User clicks × on a result
 
 ## Testing
 
-### Run tests
+No automated test suite is wired up. `pytest`, `pytest-asyncio`, and `httpx` are in `server/requirements.txt` and available in `ambivenv` if you want to add backend tests under a `tests/` directory.
 
-**Backend (Python):**
+Manual smoke check:
+
 ```bash
-cd /Users/sashikantkumar/Desktop/ambi
-source ambivenv/bin/activate
-pip install -r server/requirements.txt   # first time only
-pytest tests/ -x -q --tb=short
+curl http://127.0.0.1:8000/health          # → {"status":"ok"}
+# then: chrome://extensions → ↺ on the Ambi card → reload a tab → Cmd+Shift+K
 ```
 
-**Extension / frontend (JS):**
-```bash
-npm install   # first time — installs vitest
-npm test      # runs: vitest run tests/
-```
-
-Test files live in `tests/`. Backend tests: `tests/test_*.py`. Extension unit tests: `tests/extension/test_*.js`.
-
-### Automated hook
-
-A PostToolUse hook in `.claude/settings.json` runs the relevant test suite automatically every time Claude writes or edits a source file. It bails on the first failure (`-x` for pytest, `--bail 1` for vitest). The hook is silent when the `tests/` directory doesn't exist yet.
-
-**Do not remove or disable the PostToolUse hook in `.claude/settings.json`.** It is the project's primary regression guard.
-
-### Agent rule: test-writer runs after code-writer
-
-On every new feature or non-trivial bug fix, `test-writer` runs after `code-writer` completes (see Sub-agent routing above). This is mandatory, not optional.
-
-### Playwright MCP
-
-The `playwright` MCP server is configured in `.claude/settings.json`. Use it for end-to-end testing of the Chrome extension UI when needed. Start it via Claude Code's MCP integration — it connects to a local Chrome instance.
+The `playwright` MCP server is configured in `.claude/settings.json` for end-to-end checks of the extension UI when needed.
 
 ---
 
